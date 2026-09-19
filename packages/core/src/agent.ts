@@ -16,7 +16,7 @@
  * The consequence is that the worst a misbehaving model can do is produce
  * prose that gets thrown away — it can never invent a balance.
  */
-import { D, Decimal, Money, pct } from './money.js';
+import { D, Decimal, formatInstant, Money, pct } from './money.js';
 import type { RiskPolicy } from './policy.js';
 import { availableCredit, totalDebt, utilization } from './credit.js';
 import { collateralCallAmount, drawdownTolerance, repaymentToTarget, runAllStressScenarios } from './risk.js';
@@ -269,7 +269,7 @@ export interface ExplainInputs {
 const asOfLine = (facts: readonly Fact[]): string => {
   if (facts.length === 0) return '';
   const newest = facts.reduce((a, f) => (f.asOf > a ? f.asOf : a), facts[0]!.asOf);
-  return `Values as of ${newest.toISOString()}.`;
+  return `Values as of ${formatInstant(newest)}.`;
 };
 
 export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer => {
@@ -289,8 +289,8 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
         'portfolio_risk_adjustment', 'liquidity_adjustment', 'concentration_adjustment', 'customer_adjustment',
         'decision_eligible_collateral', 'decision_total_market_value', 'tier', 'top_concentration');
       const parts = [
-        `Your credit limit is ${facility.creditLimit.toFixedString()} ${currency}.`,
-        `It starts from ${collateral.eligibleCollateralValue.toFixedString()} ${currency} of eligible collateral — your holdings after each asset's haircut — and applies a ${pct(D(policy.thresholds.maxOriginationLtv), 0)} advance rate.`,
+        `Your credit limit is ${facility.creditLimit.toDisplayString()} ${currency}.`,
+        `It starts from ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} of eligible collateral — your holdings after each asset's haircut — and applies a ${pct(D(policy.thresholds.maxOriginationLtv), 0)} advance rate.`,
       ];
       if (input.creditDecision) {
         for (const e of input.creditDecision.explanations) parts.push(e);
@@ -303,7 +303,7 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
       cited = pick(pack, 'eligible_collateral', 'previous_eligible_collateral', 'credit_limit',
         'previous_credit_limit', 'portfolio_health', 'previous_health');
       if (!input.previousRisk) {
-        text = `Your credit limit is ${facility.creditLimit.toFixedString()} ${currency}, supported by ${collateral.eligibleCollateralValue.toFixedString()} ${currency} of eligible collateral. I do not have an earlier snapshot to compare against, so I cannot attribute a change yet.`;
+        text = `Your credit limit is ${facility.creditLimit.toDisplayString()} ${currency}, supported by ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} of eligible collateral. I do not have an earlier snapshot to compare against, so I cannot attribute a change yet.`;
         break;
       }
       const prev = input.previousRisk.eligibleCollateralValue;
@@ -315,11 +315,11 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
         .filter((p) => p.eligible)
         .sort((a, b) => b.eligibleValue.amount.comparedTo(a.eligibleValue.amount))
         .slice(0, 2)
-        .map((p) => `${p.symbol} at ${p.marketValue.toFixedString()} ${currency} (${pct(p.haircut)} haircut)`);
+        .map((p) => `${p.symbol} at ${p.marketValue.toDisplayString()} ${currency} (${pct(p.haircut)} haircut)`);
 
-      text = `Your eligible collateral ${direction} from ${prev.toFixedString()} to ${now.toFixedString()} ${currency}, a change of ${delta.toFixedString()}. Portfolio health moved from ${input.previousRisk.healthPercent.toFixed(1)}% to ${risk.healthPercent.toFixed(1)}%.` +
+      text = `Your eligible collateral ${direction} from ${prev.toDisplayString()} to ${now.toDisplayString()} ${currency}, a change of ${delta.toDisplayString()}. Portfolio health moved from ${input.previousRisk.healthPercent.toFixed(1)}% to ${risk.healthPercent.toFixed(1)}%.` +
         (movers.length ? ` The largest contributors are ${movers.join(' and ')}.` : '') +
-        ` Your credit limit is ${facility.creditLimit.toFixedString()} ${currency}.`;
+        ` Your credit limit is ${facility.creditLimit.toDisplayString()} ${currency}.`;
       break;
     }
 
@@ -329,8 +329,8 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
       const tolerance = drawdownTolerance(risk, policy);
       text = `Your portfolio health is ${risk.healthPercent.toFixed(1)}% and your account is ${risk.state}.` +
         (risk.effectiveLtv
-          ? ` You are borrowing ${totalDebt(facility).toFixedString()} ${currency} against ${collateral.eligibleCollateralValue.toFixedString()} ${currency} of eligible collateral, a loan-to-value of ${pct(risk.effectiveLtv)}, against a ${pct(D(policy.thresholds.liquidationLtv), 0)} liquidation threshold.`
-          : ` You have no balance drawn against ${collateral.eligibleCollateralValue.toFixedString()} ${currency} of eligible collateral.`) +
+          ? ` You are borrowing ${totalDebt(facility).toDisplayString()} ${currency} against ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} of eligible collateral, a loan-to-value of ${pct(risk.effectiveLtv)}, against a ${pct(D(policy.thresholds.liquidationLtv), 0)} liquidation threshold.`
+          : ` You have no balance drawn against ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} of eligible collateral.`) +
         (tolerance ? ` Your collateral could fall ${pct(tolerance, 0)} before we would need to act.` : '');
 
       const ineligible = collateral.positions.filter((p) => !p.eligible && p.marketValue.isPositive());
@@ -363,7 +363,7 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
     case 'safe_spend': {
       cited = pick(pack, 'safe_spend', 'available_credit', 'watch_threshold', 'credit_limit', 'effective_ltv');
       const available = availableCredit(facility);
-      text = `You can spend ${risk.safeSpendCapacity.toFixedString()} ${currency} while staying comfortably inside your risk thresholds. Your contractual available credit is ${available.toFixedString()} ${currency}.` +
+      text = `You can spend ${risk.safeSpendCapacity.toDisplayString()} ${currency} while staying comfortably inside your risk thresholds. Your contractual available credit is ${available.toDisplayString()} ${currency}.` +
         (risk.safeSpendCapacity.lt(available)
           ? ` The lower figure is the one I would use: spending beyond it would take your loan-to-value past ${pct(D(policy.thresholds.watchLtv), 0)}, where we start monitoring the account more closely.`
           : '');
@@ -373,13 +373,13 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
     case 'transaction_impact': {
       cited = pick(pack, 'available_credit', 'effective_ltv', 'portfolio_health', 'credit_limit');
       if (!input.amount) {
-        text = `Tell me an amount and I will show you exactly what it does to your balance, loan-to-value and health. Right now you have ${availableCredit(facility).toFixedString()} ${currency} available.`;
+        text = `Tell me an amount and I will show you exactly what it does to your balance, loan-to-value and health. Right now you have ${availableCredit(facility).toDisplayString()} ${currency} available.`;
         break;
       }
       const after = input.amount.plus(totalDebt(facility));
       const ltvAfter = collateral.eligibleCollateralValue.isPositive()
         ? after.amount.dividedBy(collateral.eligibleCollateralValue.amount) : null;
-      text = `Spending ${input.amount.toFixedString()} ${currency} would take your balance to ${after.toFixedString()} ${currency} and leave ${availableCredit(facility).minus(input.amount).clampPositive().toFixedString()} ${currency} available.` +
+      text = `Spending ${input.amount.toDisplayString()} ${currency} would take your balance to ${after.toDisplayString()} ${currency} and leave ${availableCredit(facility).minus(input.amount).clampPositive().toDisplayString()} ${currency} available.` +
         (ltvAfter ? ` Your loan-to-value would move from ${risk.effectiveLtv ? pct(risk.effectiveLtv) : '0%'} to ${pct(ltvAfter)}.` : '');
       break;
     }
@@ -388,9 +388,9 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
       cited = pick(pack, 'eligible_collateral', 'portfolio_health', 'drawdown_tolerance', 'effective_ltv');
       const positions = collateral.positions
         .filter((p) => p.marketValue.isPositive())
-        .map((p) => `${p.symbol} at ${p.marketValue.toFixedString()} ${currency} (priced ${p.priceAsOf.toISOString()})`);
+        .map((p) => `${p.symbol} at ${p.marketValue.toDisplayString()} ${currency} (priced ${formatInstant(p.priceAsOf)})`);
       const tolerance = drawdownTolerance(risk, policy);
-      text = `Your collateral currently marks at ${collateral.totalMarketValue.toFixedString()} ${currency}: ${positions.join(', ')}. After haircuts that supports ${collateral.eligibleCollateralValue.toFixedString()} ${currency} of eligible collateral and a health of ${risk.healthPercent.toFixed(1)}%.` +
+      text = `Your collateral currently marks at ${collateral.totalMarketValue.toDisplayString()} ${currency}: ${positions.join(', ')}. After haircuts that supports ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} of eligible collateral and a health of ${risk.healthPercent.toFixed(1)}%.` +
         (tolerance ? ` A further ${pct(tolerance, 0)} decline would bring you to the liquidation threshold.` : '');
       break;
     }
@@ -400,11 +400,11 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
       const debt = totalDebt(facility);
       const toTarget = repaymentToTarget(risk, policy);
       text = debt.isPositive()
-        ? `You owe ${debt.toFixedString()} ${currency} at ${D(facility.aprBps).dividedBy(100).toFixed(2)}% APR. Repaying restores your available credit immediately.` +
+        ? `You owe ${debt.toDisplayString()} ${currency} at ${D(facility.aprBps).dividedBy(100).toFixed(2)}% APR. Repaying restores your available credit immediately.` +
           (toTarget.isPositive()
-            ? ` A payment of ${toTarget.toFixedString()} ${currency} would bring your loan-to-value back to the ${pct(D(policy.thresholds.liquidationTargetLtv), 0)} target.`
+            ? ` A payment of ${toTarget.toDisplayString()} ${currency} would bring your loan-to-value back to the ${pct(D(policy.thresholds.liquidationTargetLtv), 0)} target.`
             : ' Your loan-to-value is already inside the target range, so there is no required payment beyond your statement minimum.')
-        : `You have no balance outstanding. Your full credit limit of ${facility.creditLimit.toFixedString()} ${currency} is available.`;
+        : `You have no balance outstanding. Your full credit limit of ${facility.creditLimit.toDisplayString()} ${currency} is available.`;
       break;
     }
 
@@ -412,10 +412,10 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
       cited = pick(pack, 'eligible_collateral', 'current_balance', 'effective_ltv', 'liquidation_threshold');
       const results = runAllStressScenarios(risk, collateral, policy);
       const lines = results.map((r) =>
-        `${r.scenario.label}: collateral ${r.eligibleCollateralValue.toFixedString()} ${currency}, ${r.effectiveLtv ? `LTV ${pct(r.effectiveLtv)}` : 'no LTV'}, account would be ${r.state}${r.collateralShortfall.isPositive() ? `, shortfall ${r.collateralShortfall.toFixedString()}` : ''}`,
+        `${r.scenario.label}: collateral ${r.eligibleCollateralValue.toDisplayString()} ${currency}, ${r.effectiveLtv ? `LTV ${pct(r.effectiveLtv)}` : 'no LTV'}, account would be ${r.state}${r.collateralShortfall.isPositive() ? `, shortfall ${r.collateralShortfall.toDisplayString()}` : ''}`,
       );
       const failing = results.filter((r) => !r.survives);
-      text = `Against your current balance of ${totalDebt(facility).toFixedString()} ${currency}: ${lines.join('. ')}.` +
+      text = `Against your current balance of ${totalDebt(facility).toDisplayString()} ${currency}: ${lines.join('. ')}.` +
         (failing.length === 0
           ? ' Every modelled scenario leaves you inside your thresholds.'
           : ` ${failing.length} of ${results.length} scenarios would require action.`);
@@ -432,7 +432,7 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
     case 'unsupported':
     default: {
       cited = pick(pack, 'credit_limit', 'available_credit', 'portfolio_health', 'risk_state');
-      text = `I can explain your credit limit, why it changed, your collateral health and concentration, how much you can safely spend, the impact of a specific purchase, repayment options and downside scenarios. Right now your limit is ${facility.creditLimit.toFixedString()} ${currency} with ${availableCredit(facility).toFixedString()} ${currency} available and health at ${risk.healthPercent.toFixed(1)}%.`;
+      text = `I can explain your credit limit, why it changed, your collateral health and concentration, how much you can safely spend, the impact of a specific purchase, repayment options and downside scenarios. Right now your limit is ${facility.creditLimit.toDisplayString()} ${currency} with ${availableCredit(facility).toDisplayString()} ${currency} available and health at ${risk.healthPercent.toFixed(1)}%.`;
       break;
     }
   }

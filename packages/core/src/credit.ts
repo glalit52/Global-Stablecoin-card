@@ -176,7 +176,7 @@ export const decideCredit = (input: CreditInputs): CreditDecision => {
 
   const explanations: string[] = [];
   explanations.push(
-    `Eligible collateral of ${collateral.eligibleCollateralValue.toFixedString()} ${currency} supports a base capacity of ${baseCollateralCapacity.toFixedString()} ${currency} at the ${pct(advanceRate, 0)} advance rate.`,
+    `Eligible collateral of ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} supports a base capacity of ${baseCollateralCapacity.toDisplayString()} ${currency} at the ${pct(advanceRate, 0)} advance rate.`,
   );
   if (fRisk.lt(ONE) && survivalRatio) {
     explanations.push(`Under our baseline adverse scenario your collateral would retain ${pct(survivalRatio)} of its eligible value, below the ${pct(D(policy.credit.expectedStressSurvival))} we look for, which reduces capacity by ${pct(ONE.minus(fRisk))}.`);
@@ -205,11 +205,11 @@ export const decideCredit = (input: CreditInputs): CreditDecision => {
   }
 
   if (tierCap.lt(capacity)) {
-    explanations.push(`Capacity is capped at the ${u.tier} tier ceiling of ${tierCap.toFixedString()} ${currency}.`);
+    explanations.push(`Capacity is capped at the ${u.tier} tier ceiling of ${tierCap.toDisplayString()} ${currency}.`);
     capacity = tierCap;
   }
   if (jurisdictionCap.lt(capacity)) {
-    explanations.push(`Capacity is capped at the ${u.jurisdiction} programme ceiling of ${jurisdictionCap.toFixedString()} ${currency}.`);
+    explanations.push(`Capacity is capped at the ${u.jurisdiction} programme ceiling of ${jurisdictionCap.toDisplayString()} ${currency}.`);
     capacity = jurisdictionCap;
   }
 
@@ -224,7 +224,7 @@ export const decideCredit = (input: CreditInputs): CreditDecision => {
   const hasDrawnBalance = input.existingExposure.isPositive();
   if (!hardStop && creditLimit.lt(minLimit) && !hasDrawnBalance) {
     declineReasons.push('below_minimum_viable_limit');
-    explanations.push(`Calculated capacity is below the ${u.tier} minimum of ${minLimit.toFixedString()} ${currency}.`);
+    explanations.push(`Calculated capacity is below the ${u.tier} minimum of ${minLimit.toDisplayString()} ${currency}.`);
   }
 
   if (declineReasons.length > 0) creditLimit = Money.zero(currency);
@@ -234,7 +234,7 @@ export const decideCredit = (input: CreditInputs): CreditDecision => {
   // it, the liquidation path — not by retroactively shrinking the limit.
   if (!hardStop && creditLimit.lt(input.existingExposure)) {
     explanations.push(
-      `Calculated capacity of ${creditLimit.toFixedString()} ${currency} is below your drawn balance, so the limit is held at the current balance of ${input.existingExposure.toFixedString()} ${currency}. New spending is governed by your risk state.`,
+      `Calculated capacity of ${creditLimit.toDisplayString()} ${currency} is below your drawn balance, so the limit is held at the current balance of ${input.existingExposure.toDisplayString()} ${currency}. New spending is governed by your risk state.`,
     );
     creditLimit = input.existingExposure;
   }

@@ -84,7 +84,7 @@ export const computeEarn = (input: EarnInput): EarnResult => {
       baseOnlySpend: input.billingAmount,
       capReached: false,
       accrualCost: Money.of(points.times(D(POINT_VALUE_USD)), currency).round(),
-      explanation: `${points.toFixed()} points at the ${baseRate}x base rate on ${input.billingAmount.toFixedString()} ${currency}.`,
+      explanation: `${points.toFixed()} points at the ${baseRate}x base rate on ${input.billingAmount.toDisplayString()} ${currency}.`,
     };
   }
 
@@ -107,8 +107,8 @@ export const computeEarn = (input: EarnInput): EarnResult => {
   const capReached = cap !== null && !remainingCap.isPositive();
 
   const explanation = baseOnlySpend.isPositive()
-    ? `${points.toFixed()} points: ${bonusEligibleSpend.toFixedString()} at ${rate}x (${input.category.replace('_', ' ')}) and ${baseOnlySpend.toFixedString()} at ${baseRate}x after the monthly bonus cap.`
-    : `${points.toFixed()} points at ${rate}x on ${input.category.replace('_', ' ')} spend of ${input.billingAmount.toFixedString()} ${currency}.`;
+    ? `${points.toFixed()} points: ${bonusEligibleSpend.toDisplayString()} at ${rate}x (${input.category.replace('_', ' ')}) and ${baseOnlySpend.toDisplayString()} at ${baseRate}x after the monthly bonus cap.`
+    : `${points.toFixed()} points at ${rate}x on ${input.category.replace('_', ' ')} spend of ${input.billingAmount.toDisplayString()} ${currency}.`;
 
   return {
     points, baseRate, effectiveRate, bonusEligibleSpend, baseOnlySpend, capReached,

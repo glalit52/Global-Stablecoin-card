@@ -8,7 +8,7 @@
  */
 import type pg from 'pg';
 import {
-  collateralCallAmount, computeRisk, D, Decimal, drawdownTolerance, getPolicy,
+  collateralCallAmount, computeRisk, D, Decimal, drawdownTolerance, formatInstant, getPolicy,
   isAtLeast, Money, pct, repaymentToTarget, RISK_STATE_ORDER, runAllStressScenarios,
   type CollateralSummary, type CreditFacility, type RiskSnapshot, type RiskState,
 } from '@wealthcard/core';
@@ -194,13 +194,13 @@ const stateNarrative = (
       return {
         severity: 'warning',
         title: 'New discretionary spending is paused',
-        body: `Your loan-to-value has reached ${ltv}. Essential and recurring payments continue as normal. Adding collateral or repaying ${requiredAmount.toFixedString()} ${snapshot.currency} would restore full spending.`,
+        body: `Your loan-to-value has reached ${ltv}. Essential and recurring payments continue as normal. Adding collateral or repaying ${requiredAmount.toDisplayString()} ${snapshot.currency} would restore full spending.`,
       };
     case 'remediation':
       return {
         severity: 'critical',
         title: 'Action required: add collateral or repay',
-        body: `Your loan-to-value has reached ${ltv}. To avoid a forced sale of collateral, add ${requiredAmount.toFixedString()} ${snapshot.currency} of eligible collateral or repay an equivalent amount.`,
+        body: `Your loan-to-value has reached ${ltv}. To avoid a forced sale of collateral, add ${requiredAmount.toDisplayString()} ${snapshot.currency} of eligible collateral or repay an equivalent amount.`,
       };
     case 'liquidation':
       return {
@@ -311,7 +311,7 @@ export const evaluateAndAlert = async (
         kind: 'margin_call',
         severity: 'critical',
         title: 'Margin call',
-        body: `Add ${required.toFixedString()} ${snapshot.currency} of eligible collateral, or repay ${repaymentToTarget(snapshot, policy).toFixedString()} ${snapshot.currency}, by ${deadline.toISOString()}. After that we may sell collateral to restore your account.`,
+        body: `Add ${required.toDisplayString()} ${snapshot.currency} of eligible collateral, or repay ${repaymentToTarget(snapshot, policy).toFixedString()} ${snapshot.currency}, by ${formatInstant(deadline)}. After that we may sell collateral to restore your account.`,
         actionLabel: 'Resolve now',
         actionHref: '/collateral',
         dedupeKey: 'margin_call_open',

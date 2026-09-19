@@ -101,10 +101,12 @@ describe('deterministic explanations', () => {
 
   it('explains the limit from the actual factor chain', () => {
     const a = answerFor('explain_limit');
-    expect(a.text).toMatch(/credit limit is 300000\.00 USD/);
+    expect(a.text).toMatch(/credit limit is 300,000\.00 USD/);
     expect(a.text).toMatch(/advance rate/);
     expect(a.citedFacts.map((f) => f.key)).toContain('eligible_collateral');
     expect(a.modelUsed).toBe(false);
+    // Prose carries thousands separators; API payloads deliberately do not.
+    expect(a.text).not.toMatch(/\b\d{7,}\.\d{2}\b/);
   });
 
   it('answers safe spend with the risk-bounded figure and says why', () => {
@@ -144,7 +146,7 @@ describe('deterministic explanations', () => {
   it('always attaches an as-of line and a not-advice disclaimer', () => {
     for (const intent of ['explain_limit', 'collateral_health', 'safe_spend', 'stress_test'] as const) {
       const a = answerFor(intent);
-      expect(a.disclaimers.join(' ')).toMatch(/Values as of/);
+      expect(a.disclaimers.join(' ')).toMatch(/Values as of \d{2} \w{3} \d{4}, \d{2}:\d{2} UTC/);
       expect(a.disclaimers.join(' ')).toMatch(/not financial advice/);
     }
   });

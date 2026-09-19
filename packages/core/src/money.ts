@@ -140,8 +140,24 @@ export class Money {
   /** Exact decimal string at full precision — the database representation. */
   toString(): string { return this.amount.toFixed(); }
 
-  /** Fixed at the currency scale — the API/display representation. */
+  /** Fixed at the currency scale — the API/machine representation. */
   toFixedString(): string { return this.amount.toDecimalPlaces(scaleOf(this.currency)).toFixed(scaleOf(this.currency)); }
+
+  /**
+   * Grouped rendering for customer-facing prose: "1,284,758.29".
+   *
+   * Separate from `toFixedString` on purpose. API payloads stay ungrouped so
+   * a client can parse them without stripping separators, while anything a
+   * person reads gets the separators — "636541.38" in a sentence is the kind
+   * of detail that makes a premium product feel unfinished.
+   */
+  toDisplayString(): string {
+    const fixed = this.toFixedString();
+    const negative = fixed.startsWith('-');
+    const [whole = '0', fraction] = fixed.replace('-', '').split('.');
+    const grouped = whole.replace(/\B(?=(\d{3})+(?!\d))/g, ',');
+    return `${negative ? '-' : ''}${grouped}${fraction ? `.${fraction}` : ''}`;
+  }
 
   toJSON(): { amount: string; currency: Currency } {
     return { amount: this.toFixedString(), currency: this.currency };
@@ -178,3 +194,16 @@ export const bps = (n: Numeric): Decimal => D(n).dividedBy(10_000);
 
 /** Format a Decimal fraction as a percent string for display/explanations. */
 export const pct = (fraction: Numeric, dp = 1): string => `${D(fraction).times(100).toDecimalPlaces(dp).toFixed(dp)}%`;
+
+/**
+ * A readable, locale-independent timestamp for disclosures.
+ * The core stays deterministic, so it formats rather than delegating to the
+ * host locale: the same inputs must render the same text in a test, in a log
+ * and in an audit export.
+ */
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'] as const;
+
+export const formatInstant = (d: Date): string => {
+  const pad = (n: number) => String(n).padStart(2, '0');
+  return `${pad(d.getUTCDate())} ${MONTHS[d.getUTCMonth()]} ${d.getUTCFullYear()}, ${pad(d.getUTCHours())}:${pad(d.getUTCMinutes())} UTC`;
+};

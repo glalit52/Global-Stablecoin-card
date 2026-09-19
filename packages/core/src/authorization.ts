@@ -136,7 +136,7 @@ export const authorize = (
   const billingAmount = convertedAmount.plus(fxFee);
   if (!sameCurrency && appliedRate) {
     checks.push(check('fx_conversion', true,
-      `${req.amount.toFixedString()} ${req.amount.currency} at ${appliedRate.toDecimalPlaces(6)} = ${convertedAmount.toFixedString()} ${billingCurrency}, fee ${fxFee.toFixedString()}`));
+      `${req.amount.toDisplayString()} ${req.amount.currency} at ${appliedRate.toDecimalPlaces(6)} = ${convertedAmount.toDisplayString()} ${billingCurrency}, fee ${fxFee.toDisplayString()}`));
   }
 
   const international = country !== 'US';
@@ -148,17 +148,17 @@ export const authorize = (
   // --- 5. Card-level velocity limits ---------------------------------------
   const withinPerTxn = !c.perTransactionLimit || billingAmount.lte(c.perTransactionLimit);
   checks.push(check('per_transaction_limit', withinPerTxn,
-    c.perTransactionLimit ? `Limit ${c.perTransactionLimit.toFixedString()}` : 'No per-transaction limit'));
+    c.perTransactionLimit ? `Limit ${c.perTransactionLimit.toDisplayString()}` : 'No per-transaction limit'));
   if (!withinPerTxn) fail('61_exceeds_limit', 'Transaction exceeds your per-transaction limit');
 
   const withinDaily = !c.dailyLimit || ctx.spentToday.plus(billingAmount).lte(c.dailyLimit);
   checks.push(check('daily_limit', withinDaily,
-    c.dailyLimit ? `${ctx.spentToday.toFixedString()} of ${c.dailyLimit.toFixedString()} used today` : 'No daily limit'));
+    c.dailyLimit ? `${ctx.spentToday.toDisplayString()} of ${c.dailyLimit.toDisplayString()} used today` : 'No daily limit'));
   if (!withinDaily) fail('65_exceeds_frequency', 'Transaction exceeds your daily spending limit');
 
   const withinMonthly = !c.monthlyLimit || ctx.spentThisMonth.plus(billingAmount).lte(c.monthlyLimit);
   checks.push(check('monthly_limit', withinMonthly,
-    c.monthlyLimit ? `${ctx.spentThisMonth.toFixedString()} of ${c.monthlyLimit.toFixedString()} used this month` : 'No monthly limit'));
+    c.monthlyLimit ? `${ctx.spentThisMonth.toDisplayString()} of ${c.monthlyLimit.toDisplayString()} used this month` : 'No monthly limit'));
   if (!withinMonthly) fail('65_exceeds_frequency', 'Transaction exceeds your monthly spending limit');
 
   // --- 6. Fraud ------------------------------------------------------------
@@ -199,7 +199,7 @@ export const authorize = (
   const available = availableCredit(facility);
   const sufficient = billingAmount.lte(available);
   checks.push(check('available_credit', sufficient,
-    `${available.toFixedString()} ${billingCurrency} available, ${billingAmount.toFixedString()} requested`));
+    `${available.toDisplayString()} ${billingCurrency} available, ${billingAmount.toDisplayString()} requested`));
   if (!sufficient) fail('51_insufficient_funds', 'Transaction exceeds your available credit');
 
   // --- 9. LTV ceiling ------------------------------------------------------
@@ -274,8 +274,8 @@ export const previewSpend = (
     : null;
 
   const explanation = !affordable
-    ? `A ${amount.toFixedString()} ${amount.currency} purchase is above your available credit of ${available.toFixedString()}.`
-    : `A ${amount.toFixedString()} ${amount.currency} purchase would leave ${available.minus(amount).toFixedString()} available` +
+    ? `A ${amount.toDisplayString()} ${amount.currency} purchase is above your available credit of ${available.toDisplayString()}.`
+    : `A ${amount.toDisplayString()} ${amount.currency} purchase would leave ${available.minus(amount).toDisplayString()} available` +
       (projected.ltv
         ? `, moving your loan-to-value to ${projected.ltv.times(100).toDecimalPlaces(1)}% and your account to ${projected.state}.`
         : '.') +

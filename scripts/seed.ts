@@ -231,46 +231,64 @@ const run = async (): Promise<void> => {
       const limit = Money.of(facility?.credit_limit ?? '0', policy.facilityCurrency);
       const targetDraw = limit.times(D(spec.drawShare));
 
-      // Post a spend history spread across 90 days. Advancing the clock
-      // between charges keeps the velocity and amount-anomaly signals quiet,
-      // which is what a genuine account looks like — and it gives the UI a
-      // real history to render rather than sixty charges in one second.
-      let drawn = Money.zero(policy.facilityCurrency);
-      let i = 0;
+      // Build the purchase list first, then post it on an even timeline.
+      //
+      // Deciding the schedule up front is what lets the history *end* at the
+      // present rather than wherever a step-as-you-go loop happened to stop.
+      // A dashboard whose "last 30 days" is empty because the seed drifted is
+      // worse than no seed at all.
+      interface Purchase {
+        name: string; mcc: string; country: string; amount: string;
+        currency: string; entryMode: 'contactless' | 'ecommerce' | 'chip';
+      }
+
+      const schedule: Purchase[] = [];
+      let planned = Money.zero(policy.facilityCurrency);
       let large = 0;
 
-      while (drawn.lt(targetDraw) && i < 270) {
+      for (let n = 0; n < 400 && planned.lt(targetDraw); n += 1) {
         // One large purchase for every four everyday ones.
-        const useLarge = i > 0 && i % 4 === 0;
+        if (n > 0 && n % 4 === 0) {
+          const l = LARGE_PURCHASES[large % LARGE_PURCHASES.length]!;
+          large += 1;
+          const amount = limit.times(D(l.share)).roundDown();
+          schedule.push({
+            name: l.name, mcc: l.mcc, country: l.country,
+            amount: amount.toString(), currency: 'USD', entryMode: l.entryMode,
+          });
+          planned = planned.plus(amount);
+        } else {
+          const m = MERCHANTS[n % MERCHANTS.length]!;
+          schedule.push({
+            name: m.name, mcc: m.mcc, country: m.country,
+            amount: m.amount, currency: m.currency, entryMode: m.entryMode,
+          });
+          // Foreign amounts are approximated for planning; the authorization
+          // path does the real conversion.
+          planned = planned.plus(Money.of(m.amount, 'USD'));
+        }
+      }
+
+      // Spread the schedule from 90 days ago up to yesterday.
+      const spanMs = 89 * 86_400_000;
+      const stepMs = schedule.length > 1 ? Math.floor(spanMs / (schedule.length - 1)) : 0;
+      seedClock = new Date(Date.now() - spanMs);
+
+      let drawn = Money.zero(policy.facilityCurrency);
+      let i = 0;
+
+      for (const purchase of schedule) {
         const requestId = `seed-${customerId.slice(0, 8)}-${i}`;
-
-        const spec2 = useLarge
-          ? (() => {
-              const l = LARGE_PURCHASES[large % LARGE_PURCHASES.length]!;
-              large += 1;
-              return {
-                name: l.name, mcc: l.mcc, country: l.country, entryMode: l.entryMode,
-                amount: limit.times(D(l.share)).roundDown().toString(), currency: 'USD',
-              };
-            })()
-          : (() => {
-              const m = MERCHANTS[i % MERCHANTS.length]!;
-              return {
-                name: m.name, mcc: m.mcc, country: m.country, entryMode: m.entryMode,
-                amount: m.amount, currency: m.currency,
-              };
-            })();
-
         const decision = await authorizeTransaction(ctx, pool, {
           requestId,
           cardId: virtual.cardId,
-          amount: spec2.amount,
-          currency: spec2.currency,
-          merchantId: `m_${spec2.name.toLowerCase().replace(/\W+/g, '_')}`,
-          merchantName: spec2.name,
-          mcc: spec2.mcc,
-          merchantCountry: spec2.country,
-          entryMode: spec2.entryMode as 'contactless' | 'ecommerce' | 'chip',
+          amount: purchase.amount,
+          currency: purchase.currency,
+          merchantId: `m_${purchase.name.toLowerCase().replace(/\W+/g, '_')}`,
+          merchantName: purchase.name,
+          mcc: purchase.mcc,
+          merchantCountry: purchase.country,
+          entryMode: purchase.entryMode,
           isRecurring: false,
           deviceId,
         });
@@ -280,8 +298,7 @@ const run = async (): Promise<void> => {
           drawn = drawn.plus(decision.billingAmount);
         }
 
-        // Eight hours between charges, so a full run spans about 90 days.
-        advanceClock(8 * 3_600_000);
+        advanceClock(stepMs);
         i += 1;
       }
 

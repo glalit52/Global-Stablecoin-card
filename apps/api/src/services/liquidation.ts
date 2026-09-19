@@ -251,7 +251,7 @@ export const executeLiquidation = async (
       kind: 'liquidation_executed',
       severity: 'critical',
       title: 'Collateral was sold to restore your account',
-      body: `We sold collateral raising ${totalNet.toFixedString()} USD, which has been applied to your balance. Your account details show the exact assets and prices.`,
+      body: `We sold collateral raising ${totalNet.toDisplayString()} USD, which has been applied to your balance. Your account details show the exact assets and prices.`,
       actionLabel: 'View details',
       actionHref: '/activity',
     });

@@ -284,10 +284,10 @@ export const describePlan = (plan: LiquidationPlan): string => {
     return 'No collateral sale is required at this time.';
   }
   const parts = plan.lots.map(
-    (l) => `${l.quantity.toDecimalPlaces(8).toFixed()} ${l.symbol} (about ${l.netProceeds.toFixedString()} ${plan.currency} net)`,
+    (l) => `${l.quantity.toDecimalPlaces(8).toFixed()} ${l.symbol} (about ${l.netProceeds.toDisplayString()} ${plan.currency} net)`,
   );
   const outcome = plan.sufficient
     ? `This would bring your loan-to-value back to about ${plan.targetLtv.times(100).toDecimalPlaces(0)}%.`
     : 'This would not fully restore the target loan-to-value; additional collateral or repayment is required.';
-  return `To restore your account we would sell ${parts.join(', ')}, raising ${plan.totalNetProceeds.toFixedString()} ${plan.currency} against a balance of ${plan.debtBefore.toFixedString()} ${plan.currency}. ${outcome}`;
+  return `To restore your account we would sell ${parts.join(', ')}, raising ${plan.totalNetProceeds.toDisplayString()} ${plan.currency} against a balance of ${plan.debtBefore.toDisplayString()} ${plan.currency}. ${outcome}`;
 };
