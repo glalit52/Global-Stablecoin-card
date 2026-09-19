@@ -482,6 +482,66 @@ export const registerAdminRoutes = (app: FastifyInstance, ctx: AppContext): void
     return reply.send({ interactions: rows });
   });
 
+  /**
+   * Sandbox-only: place verified holdings directly on a customer.
+   *
+   * In production the wealth graph is populated by the custodian, broker and
+   * bank integrations of PRD §9.1 — there is no endpoint that asserts a
+   * customer owns something. This exists so the walkthrough and automated
+   * demos can run against nothing but a running API, and it refuses to
+   * register unless the custody provider is a sandbox one.
+   */
+  app.post('/v1/admin/demo/seed-assets', async (req, reply) => {
+    const operator = requireOperator(req.principal, 'risk', 'admin');
+    if (!ctx.partners.custody.name.startsWith('sandbox')) {
+      throw forbidden('Asset seeding is not available outside a sandbox environment');
+    }
+
+    const body = parse(z.object({
+      customerId: z.string().uuid(),
+      tier: z.enum(['WEALTH', 'WEALTH_PLUS', 'PRIVATE', 'ULTRA']).optional(),
+      holdings: z.array(z.object({
+        symbol: z.string().min(2).max(10),
+        assetClass: z.enum(['BTC', 'ETH', 'STABLECOIN', 'EQUITY', 'ETF', 'BOND', 'CASH', 'OTHER_TOKEN']),
+        quantity: z.string().regex(/^\d+(\.\d{1,18})?$/),
+      })).min(1).max(20),
+    }), req.body);
+
+    const custodyAccountId = `custody_demo_${body.customerId.slice(0, 8)}`;
+
+    await transaction(ctx.pool, async (tx) => {
+      await query(
+        tx,
+        `UPDATE customers
+            SET custody_account_id = $2,
+                tier = COALESCE($3::tier, tier)
+          WHERE id = $1`,
+        [body.customerId, custodyAccountId, body.tier ?? null],
+      );
+      for (const h of body.holdings) {
+        await query(
+          tx,
+          `INSERT INTO assets
+             (customer_id, asset_class, symbol, custodian, custody_model, quantity,
+              verification, last_verified_at, pledged)
+           VALUES ($1,$2::asset_class,$3,$4,'institutional_custodian',$5,'custodian_api', now(), TRUE)
+           ON CONFLICT (customer_id, custodian, symbol) DO UPDATE
+             SET quantity = EXCLUDED.quantity, last_verified_at = now()`,
+          [body.customerId, h.assetClass, h.symbol.toUpperCase(),
+           ctx.partners.custody.name, h.quantity],
+        );
+      }
+    });
+
+    await audit(ctx.pool, {
+      actorType: 'operator', actorId: operator.operatorId,
+      action: 'admin.demo_assets_seeded', entityType: 'customer', entityId: body.customerId,
+      after: { holdings: body.holdings, tier: body.tier ?? null }, ip: clientIp(req),
+    });
+
+    return reply.send({ ok: true, custodyAccountId, seeded: body.holdings.length });
+  });
+
   /** Portfolio-level KPIs (PRD §26). */
   app.get('/v1/admin/metrics', async (req, reply) => {
     requireOperator(req.principal, 'risk', 'compliance', 'admin');

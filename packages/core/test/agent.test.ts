@@ -178,6 +178,14 @@ describe('grounding guardrail', () => {
     expect(g.grounded).toBe(true);
   });
 
+  it('ignores timestamps, which are provenance rather than claims', () => {
+    const { pack } = scenario();
+    expect(groundingViolations('Values as of 19 Sep 2026, 14:07 UTC.', pack).grounded).toBe(true);
+    expect(groundingViolations('Priced at 2026-09-19T14:07:33.000Z.', pack).grounded).toBe(true);
+    // A fabricated figure alongside a real timestamp is still caught.
+    expect(groundingViolations('As of 19 Sep 2026, 14:07 UTC your balance is 88123.45.', pack).grounded).toBe(false);
+  });
+
   it('rejects a fabricated balance', () => {
     const { pack } = scenario();
     const g = groundingViolations('Your available credit is 999999.00 USD.', pack);

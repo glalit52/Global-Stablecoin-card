@@ -288,14 +288,36 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
       cited = pick(pack, 'credit_limit', 'eligible_collateral', 'advance_rate', 'base_collateral_capacity',
         'portfolio_risk_adjustment', 'liquidity_adjustment', 'concentration_adjustment', 'customer_adjustment',
         'decision_eligible_collateral', 'decision_total_market_value', 'tier', 'top_concentration');
-      const parts = [
-        `Your credit limit is ${facility.creditLimit.toDisplayString()} ${currency}.`,
-        `It starts from ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} of eligible collateral — your holdings after each asset's haircut — and applies a ${pct(D(policy.thresholds.maxOriginationLtv), 0)} advance rate.`,
-      ];
+
       if (input.creditDecision) {
-        for (const e of input.creditDecision.explanations) parts.push(e);
+        // The stored decision already opens with the collateral-and-advance-rate
+        // sentence. Generating our own version of it as well would state the
+        // same quantity twice with two slightly different values, because
+        // prices move between the decision and this request — which reads as
+        // an inconsistency even though both figures are true as of their own
+        // timestamps.
+        const decidedAt = formatInstant(input.creditDecision.decidedAt);
+        const collateralNow = collateral.eligibleCollateralValue;
+        const collateralThen = input.creditDecision.breakdown.baseCollateralCapacity
+          .dividedBy(input.creditDecision.breakdown.advanceRate);
+
+        const parts = [
+          `Your credit limit is ${facility.creditLimit.toDisplayString()} ${currency}, set on ${decidedAt}.`,
+          ...input.creditDecision.explanations,
+        ];
+
+        // Only mention the live figure when it has actually moved enough to
+        // matter, and say plainly that it is the newer of the two.
+        const drift = collateralNow.minus(collateralThen).abs();
+        if (collateralThen.isPositive() && drift.amount.dividedBy(collateralThen.amount).gt(D('0.01'))) {
+          parts.push(
+            `Since then your eligible collateral has moved to ${collateralNow.toDisplayString()} ${currency}; your limit is reviewed continuously and will follow it.`,
+          );
+        }
+        text = parts.join(' ');
+      } else {
+        text = `Your credit limit is ${facility.creditLimit.toDisplayString()} ${currency}. It starts from ${collateral.eligibleCollateralValue.toDisplayString()} ${currency} of eligible collateral — your holdings after each asset's haircut — and applies a ${pct(D(policy.thresholds.maxOriginationLtv), 0)} advance rate.`;
       }
-      text = parts.join(' ');
       break;
     }
 
@@ -457,9 +479,24 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
 // Grounding check — the gate every model-written sentence must pass
 // ---------------------------------------------------------------------------
 
+/**
+ * Timestamps are provenance, not financial claims, so their digits are removed
+ * before numbers are extracted. Otherwise "as of 19 Sep 2026" would fail the
+ * grounding check on the year — which is true, disclosed, and not a value the
+ * customer could act on.
+ */
+const TIMESTAMP_PATTERNS: readonly RegExp[] = [
+  /\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}(?:\.\d+)?Z?/g,   // ISO 8601
+  /\d{1,2} [A-Z][a-z]{2} \d{4}, \d{2}:\d{2} UTC/g,          // formatInstant
+  /\d{1,2}\/\d{1,2}\/\d{4}/g,                              // 19/09/2026
+];
+
+export const stripTimestamps = (text: string): string =>
+  TIMESTAMP_PATTERNS.reduce((acc, pattern) => acc.replace(pattern, ' '), text);
+
 /** Pull every number out of a piece of prose, normalised for comparison. */
 export const extractNumbers = (text: string): string[] => {
-  const matches = text.match(/-?\$?\d[\d,]*(?:\.\d+)?%?/g) ?? [];
+  const matches = stripTimestamps(text).match(/-?\$?\d[\d,]*(?:\.\d+)?%?/g) ?? [];
   return matches.map((m) => m.replace(/[$,%]/g, '').replace(/,/g, ''));
 };
 
