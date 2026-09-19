@@ -56,10 +56,14 @@ export const registerAuthRoutes = (app: FastifyInstance, ctx: AppContext): void 
 
       await query(
         tx,
+        // $2 is cast explicitly at both use sites. Without the casts Postgres
+        // has to deduce one type for a parameter compared against an enum
+        // column in one clause and a text literal in another, and refuses.
         `UPDATE customers
-            SET kyc_status = $2, kyc_reference = $3, sanctions_clear = $4,
+            SET kyc_status = $2::kyc_status, kyc_reference = $3, sanctions_clear = $4,
                 pep_review_cleared = $5, fraud_score = $6,
-                status = CASE WHEN $2 = 'approved' THEN 'active'::customer_status ELSE status END
+                status = CASE WHEN $2::text = 'approved'
+                              THEN 'active'::customer_status ELSE status END
           WHERE id = $1`,
         [customerId, kyc.status, kyc.reference, kyc.sanctionsClear,
          !kyc.pepMatch, kyc.riskScore.toDecimalPlaces(4).toFixed()],

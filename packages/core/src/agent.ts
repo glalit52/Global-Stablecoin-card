@@ -85,6 +85,16 @@ export interface FactPackInputs {
   readonly previousRisk: RiskSnapshot | null;
   readonly tier: Tier;
   readonly pointsBalance: Decimal;
+  /**
+   * Collateral as it stood when `creditDecision` was made. The decision's
+   * stored explanations quote these figures, and prices move between then and
+   * now, so they have to be disclosable facts in their own right or the agent
+   * ends up stating a number with no source attached.
+   */
+  readonly decisionCollateral?: {
+    readonly eligibleCollateralValue: string;
+    readonly totalMarketValue: string;
+  } | null;
   readonly policy: RiskPolicy;
   readonly now: Date;
 }
@@ -177,6 +187,16 @@ export const buildFactPack = (input: FactPackInputs): FactPack => {
     if (input.creditDecision.previousLimit) {
       facts.push(fact('previous_credit_limit', 'Previous credit limit', input.creditDecision.previousLimit.toFixedString(), 'money', input.creditDecision.decidedAt, ledgerSource));
     }
+    if (input.decisionCollateral) {
+      facts.push(
+        fact('decision_eligible_collateral', 'Eligible collateral at the time of the decision',
+          input.decisionCollateral.eligibleCollateralValue, 'money',
+          input.creditDecision.decidedAt, collateralSource),
+        fact('decision_total_market_value', 'Connected wealth at the time of the decision',
+          input.decisionCollateral.totalMarketValue, 'money',
+          input.creditDecision.decidedAt, collateralSource),
+      );
+    }
   }
 
   facts.push(
@@ -266,7 +286,8 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
   switch (intent) {
     case 'explain_limit': {
       cited = pick(pack, 'credit_limit', 'eligible_collateral', 'advance_rate', 'base_collateral_capacity',
-        'portfolio_risk_adjustment', 'liquidity_adjustment', 'concentration_adjustment', 'customer_adjustment');
+        'portfolio_risk_adjustment', 'liquidity_adjustment', 'concentration_adjustment', 'customer_adjustment',
+        'decision_eligible_collateral', 'decision_total_market_value', 'tier', 'top_concentration');
       const parts = [
         `Your credit limit is ${facility.creditLimit.toFixedString()} ${currency}.`,
         `It starts from ${collateral.eligibleCollateralValue.toFixedString()} ${currency} of eligible collateral — your holdings after each asset's haircut — and applies a ${pct(D(policy.thresholds.maxOriginationLtv), 0)} advance rate.`,

@@ -154,7 +154,8 @@ export const registerAccountRoutes = (app: FastifyInstance, ctx: AppContext): vo
     const call = await queryOne<{ id: string; deadline_at: Date; required_amount: string }>(
       ctx.pool,
       `SELECT id, deadline_at, required_amount::text FROM margin_calls
-        WHERE customer_id = $1 AND cured_at IS NULL ORDER BY raised_at DESC LIMIT 1`,
+        WHERE customer_id = $1 AND cured_at IS NULL
+        ORDER BY raised_at DESC, id DESC LIMIT 1`,
       [principal.customerId],
     );
 

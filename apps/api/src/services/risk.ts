@@ -30,7 +30,7 @@ export const openMarginCall = async (db: Db, customerId: string): Promise<OpenMa
     db,
     `SELECT id, raised_at, deadline_at, required_amount::text
        FROM margin_calls WHERE customer_id = $1 AND cured_at IS NULL
-       ORDER BY raised_at DESC LIMIT 1`,
+       ORDER BY raised_at DESC, id DESC LIMIT 1`,
     [customerId],
   );
   return row ? {
@@ -98,7 +98,10 @@ export const previousSnapshot = async (
     triggered_rules: string[]; degraded: boolean; policy_version: string; computed_at: Date;
   }>(
     db,
-    `SELECT * FROM risk_snapshots WHERE customer_id = $1 ORDER BY computed_at DESC LIMIT 1`,
+    // The id tiebreaker matters: snapshots can share a timestamp, and without
+    // it "the previous snapshot" is whichever row Postgres happens to return.
+    `SELECT * FROM risk_snapshots WHERE customer_id = $1
+      ORDER BY computed_at DESC, id DESC LIMIT 1`,
     [customerId],
   );
   if (!row) return null;

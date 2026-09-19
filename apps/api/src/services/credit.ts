@@ -211,7 +211,8 @@ export const latestDecision = async (
     policy_version: string; decided_at: Date;
   }>(
     db,
-    `SELECT * FROM credit_decisions WHERE customer_id = $1 ORDER BY decided_at DESC LIMIT 1`,
+    `SELECT * FROM credit_decisions WHERE customer_id = $1
+      ORDER BY decided_at DESC, seq DESC LIMIT 1`,
     [customerId],
   );
   if (!row) return null;

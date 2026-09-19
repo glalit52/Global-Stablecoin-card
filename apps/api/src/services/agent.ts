@@ -96,6 +96,10 @@ export const buildPack = async (
     creditDecision: stored
       ? rehydrateDecision(c.customer.id, c.facility.currency, stored)
       : null,
+    decisionCollateral: stored ? {
+      eligibleCollateralValue: stored.breakdown.eligibleCollateralValue ?? '0.00',
+      totalMarketValue: stored.breakdown.totalMarketValue ?? '0.00',
+    } : null,
     previousRisk: await previousSnapshot(db, c.customer.id),
     tier: c.customer.tier,
     pointsBalance: rewards.posted,
@@ -188,6 +192,26 @@ export const ask = async (
   let violations: string[] = [];
   let modelName: string | null = null;
 
+  // Self-audit the deterministic answer against its own fact pack.
+  //
+  // The guardrail exists to stop *any* unsourced number reaching a customer,
+  // not only ones a model wrote. The deterministic explainer quotes a stored
+  // decision's sentences verbatim, and those were written against collateral
+  // values from that moment; if pricing has moved far enough that a quoted
+  // figure is no longer disclosable, the explanation is trimmed back to the
+  // parts generated from live data rather than shipped with a number the
+  // customer cannot trace.
+  const selfCheck = groundingViolations(text, pack);
+  if (!selfCheck.grounded) {
+    violations = [...selfCheck.violations];
+    groundingRejected = true;
+    const sentences = text.split(/(?<=\.)\s+/);
+    const grounded = sentences.filter((sentence) => groundingViolations(sentence, pack).grounded);
+    text = grounded.length > 0
+      ? grounded.join(' ')
+      : `Your credit limit is ${c.facility.creditLimit.toFixedString()} ${c.facility.currency}. I am holding back part of this explanation because some figures in it could not be matched to current account data.`;
+  }
+
   const draft = await rephrase(ctx, pack, question, text);
   modelName = draft.modelName;
   if (draft.text) {
@@ -197,7 +221,7 @@ export const ask = async (
       modelUsed = true;
     } else {
       groundingRejected = true;
-      violations = [...check.violations];
+      violations = [...violations, ...check.violations];
     }
   }
 

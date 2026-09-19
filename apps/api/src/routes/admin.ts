@@ -62,7 +62,7 @@ export const registerAdminRoutes = (app: FastifyInstance, ctx: AppContext): void
          LEFT JOIN credit_facilities f ON f.customer_id = c.id
          LEFT JOIN LATERAL (
            SELECT state, health_percent, effective_ltv FROM risk_snapshots
-            WHERE customer_id = c.id ORDER BY computed_at DESC LIMIT 1
+            WHERE customer_id = c.id ORDER BY computed_at DESC, id DESC LIMIT 1
          ) r ON TRUE
         WHERE ($1::text IS NULL OR c.legal_name ILIKE '%'||$1||'%' OR c.email ILIKE '%'||$1||'%')
           AND ($2::text IS NULL OR r.state::text = $2)
@@ -498,7 +498,7 @@ export const registerAdminRoutes = (app: FastifyInstance, ctx: AppContext): void
                 COALESCE(SUM(f.principal_balance + f.interest_balance + f.fee_balance),0)::text AS total_balance,
                 COALESCE((SELECT SUM(eligible_collateral_value) FROM (
                   SELECT DISTINCT ON (customer_id) eligible_collateral_value
-                    FROM risk_snapshots ORDER BY customer_id, computed_at DESC
+                    FROM risk_snapshots ORDER BY customer_id, computed_at DESC, id DESC
                 ) s),0)::text AS total_collateral
            FROM customers c LEFT JOIN credit_facilities f ON f.customer_id = c.id`,
       ),
@@ -506,7 +506,7 @@ export const registerAdminRoutes = (app: FastifyInstance, ctx: AppContext): void
         ctx.pool,
         `SELECT state::text, COUNT(*)::text AS count FROM (
            SELECT DISTINCT ON (customer_id) customer_id, state
-             FROM risk_snapshots ORDER BY customer_id, computed_at DESC
+             FROM risk_snapshots ORDER BY customer_id, computed_at DESC, id DESC
          ) s GROUP BY state`,
       ),
       queryOne<{ count: string; volume: string; points: string }>(

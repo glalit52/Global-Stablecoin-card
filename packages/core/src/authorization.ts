@@ -191,21 +191,26 @@ export const authorize = (
         : 'Spending is paused until your collateral position is restored');
   }
 
-  // Hard LTV block, independent of the contractual limit: even inside the
-  // limit we will not lend past the spend-block line.
+  // --- 8. Available credit -------------------------------------------------
+  // Checked before the LTV ceiling on purpose. A request above the limit is an
+  // "insufficient funds" decline — the code the network and the customer both
+  // expect — and answering "restricted card" instead would tell them their
+  // account is in trouble when it is simply a purchase they cannot afford.
+  const available = availableCredit(facility);
+  const sufficient = billingAmount.lte(available);
+  checks.push(check('available_credit', sufficient,
+    `${available.toFixedString()} ${billingCurrency} available, ${billingAmount.toFixedString()} requested`));
+  if (!sufficient) fail('51_insufficient_funds', 'Transaction exceeds your available credit');
+
+  // --- 9. LTV ceiling ------------------------------------------------------
+  // Independent of the contractual limit: even inside the limit we will not
+  // lend past the spend-block line.
   const projected = projectAfterSpend(ctx.risk, billingAmount, policy);
   const blockLtv = D(policy.thresholds.spendBlockLtv);
   const ltvOk = projected.ltv === null ? !billingAmount.isPositive() : projected.ltv.lt(blockLtv);
   checks.push(check('projected_ltv', ltvOk,
     projected.ltv ? `Post-transaction LTV ${projected.ltv.times(100).toDecimalPlaces(1)}% against a ${blockLtv.times(100)}% ceiling` : 'No collateral'));
   if (!ltvOk) fail('62_restricted_card', 'This transaction would take your loan-to-value past the permitted ceiling');
-
-  // --- 8. Available credit -------------------------------------------------
-  const available = availableCredit(facility);
-  const sufficient = billingAmount.lte(available);
-  checks.push(check('available_credit', sufficient,
-    `${available.toFixedString()} ${billingCurrency} available, ${billingAmount.toFixedString()} requested`));
-  if (!sufficient) fail('51_insufficient_funds', 'Transaction exceeds your available credit');
 
   // --- Outcome -------------------------------------------------------------
   const approved = stop === null;

@@ -174,6 +174,11 @@ CREATE UNIQUE INDEX credit_facilities_customer_key ON credit_facilities (custome
 
 CREATE TABLE credit_decisions (
   id                UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  -- "Latest decision" must be unambiguous. Ordering by decided_at alone
+  -- resolves ties arbitrarily, and two decisions inside the same millisecond
+  -- are entirely possible: a collateral change triggers a repricing, and the
+  -- risk tick may reprice the same customer in the same instant.
+  seq               BIGSERIAL NOT NULL,
   customer_id       UUID NOT NULL REFERENCES customers(id) ON DELETE CASCADE,
   approved          BOOLEAN NOT NULL,
   credit_limit      NUMERIC(38,18) NOT NULL,
@@ -184,7 +189,7 @@ CREATE TABLE credit_decisions (
   policy_version    TEXT NOT NULL,
   decided_at        TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX credit_decisions_customer_idx ON credit_decisions (customer_id, decided_at DESC);
+CREATE INDEX credit_decisions_customer_idx ON credit_decisions (customer_id, decided_at DESC, seq DESC);
 
 CREATE TABLE risk_snapshots (
   id                        BIGSERIAL PRIMARY KEY,
@@ -206,7 +211,7 @@ CREATE TABLE risk_snapshots (
   policy_version            TEXT NOT NULL,
   computed_at               TIMESTAMPTZ NOT NULL DEFAULT now()
 );
-CREATE INDEX risk_snapshots_customer_idx ON risk_snapshots (customer_id, computed_at DESC);
+CREATE INDEX risk_snapshots_customer_idx ON risk_snapshots (customer_id, computed_at DESC, id DESC);
 
 CREATE TABLE margin_calls (
   id               UUID PRIMARY KEY DEFAULT gen_random_uuid(),
