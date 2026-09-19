@@ -265,33 +265,39 @@ const MVP_POLICY: RiskPolicy = {
     PYUSD: { baseHaircut: '0.03', concentrationCap: '0.30' },
   },
 
+  // Rewards are calibrated so the blended accrual cost stays below the
+  // interchange the spend earns (PRD §15.1). A headline multiplier is only
+  // affordable on a capped slice of monthly spend: uncapped 5x at one cent a
+  // point is a 5% rebate funded by 1.85% interchange, which loses money on
+  // every transaction. The caps are what make the top rates payable, and the
+  // annual fee carries the rest of the premium benefits.
   tiers: {
     WEALTH: {
       maxCreditLimit: '50000', minCreditLimit: '1000', limitStep: '100',
       annualFee: '0', baseEarnRate: '1',
       categoryMultipliers: { groceries: '2', fuel_ev: '2', dining: '2' },
-      bonusCategoryMonthlyCap: '2500',
+      bonusCategoryMonthlyCap: '1500',
       loungeVisitsPerYear: 0, conciergeIncluded: false, fxMarkupBps: 100,
     },
     WEALTH_PLUS: {
       maxCreditLimit: '250000', minCreditLimit: '5000', limitStep: '500',
-      annualFee: '295', baseEarnRate: '1.25',
-      categoryMultipliers: { groceries: '3', fuel_ev: '3', dining: '3', travel: '3', hotels: '3' },
-      bonusCategoryMonthlyCap: '10000',
+      annualFee: '295', baseEarnRate: '1',
+      categoryMultipliers: { groceries: '3', fuel_ev: '2', dining: '3', travel: '3', hotels: '3' },
+      bonusCategoryMonthlyCap: '3000',
       loungeVisitsPerYear: 6, conciergeIncluded: false, fxMarkupBps: 50,
     },
     PRIVATE: {
       maxCreditLimit: '1000000', minCreditLimit: '25000', limitStep: '1000',
-      annualFee: '995', baseEarnRate: '1.5',
-      categoryMultipliers: { groceries: '3', fuel_ev: '3', dining: '4', travel: '5', hotels: '5', lounges: '5' },
-      bonusCategoryMonthlyCap: '50000',
+      annualFee: '995', baseEarnRate: '1',
+      categoryMultipliers: { groceries: '3', fuel_ev: '2', dining: '4', travel: '4', hotels: '4', lounges: '4' },
+      bonusCategoryMonthlyCap: '5000',
       loungeVisitsPerYear: -1, conciergeIncluded: true, fxMarkupBps: 0,
     },
     ULTRA: {
       maxCreditLimit: '10000000', minCreditLimit: '100000', limitStep: '5000',
-      annualFee: '4950', baseEarnRate: '2',
-      categoryMultipliers: { groceries: '3', fuel_ev: '3', dining: '5', travel: '6', hotels: '6', lounges: '6' },
-      bonusCategoryMonthlyCap: '-1',
+      annualFee: '4950', baseEarnRate: '1',
+      categoryMultipliers: { groceries: '3', fuel_ev: '3', dining: '5', travel: '5', hotels: '5', lounges: '5' },
+      bonusCategoryMonthlyCap: '10000',
       loungeVisitsPerYear: -1, conciergeIncluded: true, fxMarkupBps: 0,
     },
   },
@@ -470,6 +476,14 @@ export const validatePolicy = (policy: RiskPolicy): string[] => {
   }
   for (const [tier, tp] of Object.entries(policy.tiers)) {
     if (D(tp.minCreditLimit).gt(D(tp.maxCreditLimit))) errors.push(`tiers.${tier}: minCreditLimit exceeds maxCreditLimit`);
+
+    // An uncapped bonus category is an unbounded liability: the worst-case
+    // rewards cost is the multiplier times every dollar spent, which no
+    // interchange rate can fund. Every bonus category needs a monthly cap.
+    const hasBonus = Object.keys(tp.categoryMultipliers).length > 0;
+    if (hasBonus && D(tp.bonusCategoryMonthlyCap).lte(0)) {
+      errors.push(`tiers.${tier}: bonus categories must carry a positive monthly cap`);
+    }
   }
   for (const sym of policy.stablecoins.whitelist) {
     if (!policy.stablecoins.issuerBySymbol[sym]) errors.push(`stablecoins: whitelisted ${sym} has no mapped issuer`);

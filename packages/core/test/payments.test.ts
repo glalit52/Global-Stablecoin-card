@@ -3,7 +3,7 @@ import {
   assessFraud, authorize, categoryForMcc, checkRedemption, computeCollateral, computeEarn,
   computeRisk, D, getPolicy, haversineKm, maxSafeSpend, Money, pointsBalance, previewSpend,
   redemptionValue, rewardsCostRatio, tierProgress, valuePortfolio,
-  type AuthorizationRequest, type FraudContext, type RewardEntry,
+  type AuthorizationRequest, type FraudContext, type MerchantCategory, type RewardEntry,
 } from '../src/index.js';
 import { card, controls, ctx, facility, holding, price, T0, usd } from './helpers.js';
 
@@ -267,37 +267,91 @@ describe('rewards', () => {
       tier: 'PRIVATE', category: 'travel', billingAmount: usd('1000'),
       bonusSpendThisMonth: Money.zero('USD'), policy,
     });
-    expect(r.points.toFixed()).toBe('5000');
+    expect(r.points.toFixed()).toBe('4000'); // 4x travel on PRIVATE
     expect(r.capReached).toBe(false);
   });
 
   it('splits a transaction that straddles the monthly bonus cap', () => {
     const r = computeEarn({
-      tier: 'PRIVATE', category: 'travel', billingAmount: usd('10000'),
-      bonusSpendThisMonth: usd('45000'), policy, // cap is 50,000
+      tier: 'PRIVATE', category: 'travel', billingAmount: usd('4000'),
+      bonusSpendThisMonth: usd('3000'), policy, // cap is 5,000
     });
-    // 5,000 at 5x = 25,000 points, 5,000 at 1.5x = 7,500 points.
-    expect(r.points.toFixed()).toBe('32500');
-    expect(r.bonusEligibleSpend.toFixedString()).toBe('5000.00');
-    expect(r.baseOnlySpend.toFixedString()).toBe('5000.00');
+    // 2,000 at 4x = 8,000 points, 2,000 at the 1x base = 2,000 points.
+    expect(r.points.toFixed()).toBe('10000');
+    expect(r.bonusEligibleSpend.toFixedString()).toBe('2000.00');
+    expect(r.baseOnlySpend.toFixedString()).toBe('2000.00');
     expect(r.explanation).toMatch(/after the monthly bonus cap/);
   });
 
   it('drops to the base rate once the cap is exhausted', () => {
     const r = computeEarn({
       tier: 'PRIVATE', category: 'travel', billingAmount: usd('1000'),
-      bonusSpendThisMonth: usd('50000'), policy,
+      bonusSpendThisMonth: usd('5000'), policy,
     });
-    expect(r.points.toFixed()).toBe('1500');
+    expect(r.points.toFixed()).toBe('1000'); // base rate only
     expect(r.capReached).toBe(true);
   });
 
-  it('leaves the top tier uncapped', () => {
+  it('caps the top tier too, so the rewards liability stays bounded', () => {
+    // Uncapped 5x at a cent a point is a 5% rebate funded by 1.85%
+    // interchange. Every tier has to have a ceiling.
     const r = computeEarn({
       tier: 'ULTRA', category: 'travel', billingAmount: usd('100000'),
-      bonusSpendThisMonth: usd('900000'), policy,
+      bonusSpendThisMonth: Money.zero('USD'), policy,
     });
-    expect(r.points.toFixed()).toBe('600000');
+    // 10,000 at 5x = 50,000 points, 90,000 at the 1x base = 90,000 points.
+    expect(r.points.toFixed()).toBe('140000');
+    expect(r.capReached).toBe(false);
+    expect(r.effectiveRate.lt(D('1.5'))).toBe(true);
+  });
+
+  it('leaves every tier margin-positive on a realistic month of spend', () => {
+    // The sustainability condition from PRD §15.1: interchange plus the
+    // amortised annual fee must cover the rewards accrued. It is not enough
+    // for rewards to be "competitive" — an uncapped multiplier at a cent a
+    // point loses money on every single transaction.
+    const month: [MerchantCategory, string][] = [
+      ['travel', '12000'], ['hotels', '8000'], ['dining', '6000'],
+      ['groceries', '3000'], ['retail', '9000'], ['ecommerce', '7000'],
+    ];
+
+    for (const tier of ['WEALTH', 'WEALTH_PLUS', 'PRIVATE', 'ULTRA'] as const) {
+      let bonusSpend = Money.zero('USD');
+      let cost = Money.zero('USD');
+      let spend = Money.zero('USD');
+
+      for (const [category, amount] of month) {
+        const billingAmount = usd(amount);
+        const r = computeEarn({ tier, category, billingAmount, bonusSpendThisMonth: bonusSpend, policy });
+        cost = cost.plus(r.accrualCost);
+        spend = spend.plus(billingAmount);
+        bonusSpend = bonusSpend.plus(r.bonusEligibleSpend);
+      }
+
+      // A conservative blended interchange rate across those categories.
+      const interchange = spend.times(D('0.0165'));
+      const monthlyFee = Money.of(policy.tiers[tier].annualFee, 'USD').dividedBy(12);
+      const margin = interchange.plus(monthlyFee).minus(cost);
+
+      expect(margin.isPositive(), `${tier} rewards margin`).toBe(true);
+      // And the accrual cost must stay in a sane band even before the fee.
+      expect(rewardsCostRatio(cost, spend).lt(D('0.02')), `${tier} accrual ratio`).toBe(true);
+    }
+  });
+
+  it('makes the blended rate fall as spend grows past the bonus cap', () => {
+    // The cap is what bounds the liability: the more a customer spends, the
+    // closer their effective rate moves to the base rate.
+    const small = computeEarn({
+      tier: 'ULTRA', category: 'travel', billingAmount: usd('5000'),
+      bonusSpendThisMonth: Money.zero('USD'), policy,
+    });
+    const large = computeEarn({
+      tier: 'ULTRA', category: 'travel', billingAmount: usd('100000'),
+      bonusSpendThisMonth: Money.zero('USD'), policy,
+    });
+    expect(small.effectiveRate.gt(large.effectiveRate)).toBe(true);
+    expect(large.effectiveRate.lt(D('1.5'))).toBe(true);
   });
 
   it('claws points back on a refund', () => {
@@ -313,7 +367,7 @@ describe('rewards', () => {
       tier: 'PRIVATE', category: 'dining', billingAmount: usd('500'),
       bonusSpendThisMonth: Money.zero('USD'), policy,
     });
-    expect(r.points.toFixed()).toBe('2000');
+    expect(r.points.toFixed()).toBe('2000'); // 4x dining
     expect(r.accrualCost.toFixedString()).toBe('20.00');
     expect(rewardsCostRatio(r.accrualCost, usd('500')).toFixed()).toBe('0.04');
   });
