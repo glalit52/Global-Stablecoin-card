@@ -134,6 +134,7 @@ export const repriceCredit = async (
       toNumericOrNull(decision.previousLimit),
       JSON.stringify({
         baseCollateralCapacity: decision.breakdown.baseCollateralCapacity.toFixedString(),
+        steppedCapacity: decision.breakdown.steppedCapacity.toFixedString(),
         advanceRate: decision.breakdown.advanceRate.toFixed(),
         portfolioRiskAdjustment: decision.breakdown.portfolioRiskAdjustment.toFixed(),
         liquidityAdjustment: decision.breakdown.liquidityAdjustment.toFixed(),

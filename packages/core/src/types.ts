@@ -178,6 +178,10 @@ export interface CreditFacility {
 /** Every multiplicative term in the PRD §11.2 formula, kept for explainability. */
 export interface CreditFactorBreakdown {
   readonly baseCollateralCapacity: Money;
+  /** Capacity after every adjustment and cap, rounded down to the tier step.
+   *  The decision's explanations quote this figure, so it has to be
+   *  disclosable in its own right. */
+  readonly steppedCapacity: Money;
   readonly advanceRate: Decimal;
   readonly portfolioRiskAdjustment: Decimal;
   readonly liquidityAdjustment: Decimal;

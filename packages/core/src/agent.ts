@@ -179,6 +179,7 @@ export const buildFactPack = (input: FactPackInputs): FactPack => {
     const b = input.creditDecision.breakdown;
     facts.push(
       fact('base_collateral_capacity', 'Base capacity from collateral', b.baseCollateralCapacity.toFixedString(), 'money', input.creditDecision.decidedAt, `credit_engine@${policy.version}`),
+      fact('stepped_capacity', 'Calculated capacity after adjustments', b.steppedCapacity.toFixedString(), 'money', input.creditDecision.decidedAt, `credit_engine@${policy.version}`),
       fact('portfolio_risk_adjustment', 'Portfolio risk adjustment', b.portfolioRiskAdjustment.toDecimalPlaces(3).toFixed(3), 'ratio', input.creditDecision.decidedAt, `credit_engine@${policy.version}`),
       fact('liquidity_adjustment', 'Liquidity adjustment', b.liquidityAdjustment.toDecimalPlaces(3).toFixed(3), 'ratio', input.creditDecision.decidedAt, `credit_engine@${policy.version}`),
       fact('concentration_adjustment', 'Concentration adjustment', b.concentrationAdjustment.toDecimalPlaces(3).toFixed(3), 'ratio', input.creditDecision.decidedAt, `credit_engine@${policy.version}`),
@@ -287,7 +288,8 @@ export const explain = (intent: AgentIntent, input: ExplainInputs): AgentAnswer 
     case 'explain_limit': {
       cited = pick(pack, 'credit_limit', 'eligible_collateral', 'advance_rate', 'base_collateral_capacity',
         'portfolio_risk_adjustment', 'liquidity_adjustment', 'concentration_adjustment', 'customer_adjustment',
-        'decision_eligible_collateral', 'decision_total_market_value', 'tier', 'top_concentration');
+        'decision_eligible_collateral', 'decision_total_market_value', 'tier', 'top_concentration',
+        'stepped_capacity', 'current_balance');
 
       if (input.creditDecision) {
         // The stored decision already opens with the collateral-and-advance-rate

@@ -58,6 +58,12 @@ importers:
         specifier: ^3.24.1
         version: 3.25.76
 
+  apps/simulator:
+    dependencies:
+      '@wealthcard/core':
+        specifier: workspace:*
+        version: link:../../packages/core
+
   apps/web:
     dependencies:
       react:

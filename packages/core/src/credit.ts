@@ -215,6 +215,7 @@ export const decideCredit = (input: CreditInputs): CreditDecision => {
 
   // Round DOWN to a clean step — never round a credit line up.
   let creditLimit = capacity.roundDownToStep(tp.limitStep).clampPositive();
+  const steppedCapacity = creditLimit;
 
   // The tier minimum is an *origination* floor: it decides whether we open a
   // facility, not whether we keep one open. Applying it to a live account
@@ -241,6 +242,7 @@ export const decideCredit = (input: CreditInputs): CreditDecision => {
 
   const breakdown: CreditFactorBreakdown = {
     baseCollateralCapacity,
+    steppedCapacity,
     advanceRate,
     portfolioRiskAdjustment: fRisk,
     liquidityAdjustment: fLiquidity,

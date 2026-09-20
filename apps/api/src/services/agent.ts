@@ -66,6 +66,7 @@ const rehydrateDecision = (
     previousLimit: stored.previousLimit ? Money.of(stored.previousLimit, currency) : null,
     breakdown: {
       baseCollateralCapacity: amount('baseCollateralCapacity'),
+      steppedCapacity: amount('steppedCapacity'),
       advanceRate: num('advanceRate'),
       portfolioRiskAdjustment: num('portfolioRiskAdjustment', '1'),
       liquidityAdjustment: num('liquidityAdjustment', '1'),
