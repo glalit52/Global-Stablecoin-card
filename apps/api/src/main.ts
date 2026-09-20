@@ -1,7 +1,22 @@
 /** Entry point. */
 import { buildServer } from './server.js';
+import { runMigrations } from './migrate.js';
+import { loadConfig } from './config.js';
 
 const main = async (): Promise<void> => {
+  // Migrate before serving. Container platforms give you one start command,
+  // not a pre-deploy hook, and migrations are idempotent — so the server
+  // brings its own schema up to date rather than depending on someone
+  // remembering to run a separate step. Set RUN_MIGRATIONS_ON_BOOT=false where
+  // a deployment pipeline owns that instead.
+  if (process.env.RUN_MIGRATIONS_ON_BOOT !== 'false') {
+    const { databaseUrl } = loadConfig();
+    await runMigrations({
+      connectionString: databaseUrl,
+      log: (message) => console.log(`[migrate] ${message}`),
+    });
+  }
+
   const server = await buildServer();
   const { config } = server.ctx;
 

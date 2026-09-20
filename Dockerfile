@@ -28,7 +28,8 @@ RUN pnpm exec tsc -b tsconfig.build.json
 
 # Drop devDependencies from the tree that ships. The runtime needs no
 # TypeScript loader: migrations compile to dist alongside the server.
-RUN pnpm prune --prod
+# CI=true keeps pnpm from prompting, which would hang a non-interactive build.
+RUN CI=true pnpm prune --prod
 
 # --- run --------------------------------------------------------------------
 FROM node:22-slim AS run
@@ -50,6 +51,5 @@ EXPOSE 4000
 HEALTHCHECK --interval=30s --timeout=5s --start-period=20s --retries=3 \
   CMD node -e "fetch('http://127.0.0.1:'+(process.env.PORT||4000)+'/health').then(r=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))"
 
-# Migrations are idempotent, so running them on every boot is safe and keeps
-# a redeploy and a schema change as one step.
-CMD ["sh", "-c", "node apps/api/dist/migrate.js && node apps/api/dist/main.js"]
+# The server migrates on boot, so a redeploy and a schema change are one step.
+CMD ["node", "apps/api/dist/main.js"]

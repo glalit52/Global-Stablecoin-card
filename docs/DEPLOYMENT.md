@@ -28,6 +28,94 @@ So: put the web app on Vercel and the API on something that runs a process.
 | `apps/api` | Render, Railway, Fly.io, any container host | Needs a persistent process |
 | Postgres | Neon, Supabase, RDS, the host's managed offering | — |
 
+
+## The stack this repository is set up for
+
+| Piece | Where | Cost |
+|---|---|---|
+| Web app | Vercel | Free tier |
+| API | AWS App Runner | ~$5–25/month |
+| Database | Supabase Postgres | Free tier |
+
+### 1. Database — Supabase
+
+A project named `wealthcard` already exists in the connected organisation with
+the full schema applied (32 tables plus `schema_migrations`, which is recorded
+as `001_init` so the app's own migrator treats it as done).
+
+Get the connection string from **Project Settings → Database → Connection
+string → URI**, and reset the password there if you do not have it — the
+password is set at creation and shown only once.
+
+Use the **session pooler** connection (port 5432, host
+`aws-0-<region>.pooler.supabase.com`) rather than the direct one. App Runner
+scales to several instances and each keeps a connection pool; the direct
+endpoint has a low connection ceiling.
+
+> **Row Level Security is disabled on every table, and that must be resolved
+> before this holds real data.** Supabase exposes tables through PostgREST to
+> anyone holding the project's anon key, which is public by design. With RLS
+> off, that key can read `customers` (password hashes), `sessions` (token
+> hashes) and the entire ledger.
+>
+> This application never uses PostgREST — it connects directly as the `postgres`
+> role, which bypasses RLS. So enabling RLS with **no policies at all** closes
+> the hole completely and changes nothing about how the app works:
+>
+> ```sql
+> ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+> -- ...and every other table in the public schema.
+> ```
+>
+> The full statement list is in the Supabase advisor output, or run:
+> `SELECT format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY;', schemaname, tablename)
+>  FROM pg_tables WHERE schemaname = 'public';`
+
+### 2. API — AWS App Runner
+
+`apprunner.yaml` configures a source-based deployment: App Runner clones the
+repository, builds on its managed Node 22 runtime, and keeps the process alive.
+No ECR, no Dockerfile, no cluster.
+
+**Console → App Runner → Create service**
+
+| Step | Value |
+|---|---|
+| Source | Source code repository → connect GitHub → this repo, branch `main` |
+| Deployment trigger | Automatic |
+| Configuration file | Use a configuration file (`apprunner.yaml`) |
+| Port | 4000 (from the config) |
+| Health check | HTTP, path `/health` |
+| CPU / memory | 0.25 vCPU / 0.5 GB is enough to start |
+
+Then add environment variables in the console — not in `apprunner.yaml`, which
+is in version control:
+
+| Name | Value |
+|---|---|
+| `DATABASE_URL` | The Supabase pooler URI |
+| `CORS_ORIGINS` | Your Vercel domain, e.g. `https://wealthcard.vercel.app` |
+
+App Runner gives you a URL like
+`https://xxxx.us-east-1.awsapprunner.com`. Confirm it with `GET /health`.
+
+Prefer containers or already on ECS? The `Dockerfile` builds the same thing and
+runs anywhere. App Runner can also deploy from an ECR image instead of source.
+
+### 3. Web app — Vercel
+
+Set `VITE_API_BASE_URL` to the App Runner URL **before** building — Vite inlines
+it at build time — then follow the Vercel section below.
+
+### 4. Seed, only if this is a demo
+
+```bash
+DATABASE_URL="<supabase uri>" pnpm db:seed
+```
+
+Creates three customers sharing a password published in this repository. Never
+run it against anything real.
+
 ## Deploying the web app to Vercel
 
 **Project settings**
