@@ -493,7 +493,7 @@ export const registerAdminRoutes = (app: FastifyInstance, ctx: AppContext): void
    */
   app.post('/v1/admin/demo/seed-assets', async (req, reply) => {
     const operator = requireOperator(req.principal, 'risk', 'admin');
-    if (!ctx.partners.custody.name.startsWith('sandbox')) {
+    if (!ctx.config.sandboxEndpoints || !ctx.partners.custody.name.startsWith('sandbox')) {
       throw forbidden('Asset seeding is not available outside a sandbox environment');
     }
 

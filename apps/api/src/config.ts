@@ -15,6 +15,12 @@ export interface Config {
   readonly anthropicModel: string;
   readonly nodeEnv: string;
   readonly logLevel: string;
+  /**
+   * Endpoints that exist only for demos: moving the market for every customer,
+   * and asserting holdings a customer does not have. Off in production unless
+   * deliberately turned on, because either one is a way to manufacture credit.
+   */
+  readonly sandboxEndpoints: boolean;
 }
 
 const int = (v: string | undefined, fallback: number): number => {
@@ -37,4 +43,6 @@ export const loadConfig = (env: NodeJS.ProcessEnv = process.env): Config => ({
   anthropicModel: env.ANTHROPIC_MODEL ?? 'claude-sonnet-5',
   nodeEnv: env.NODE_ENV ?? 'development',
   logLevel: env.LOG_LEVEL ?? 'info',
+  sandboxEndpoints: env.ENABLE_SANDBOX_ENDPOINTS === 'true'
+    || (env.NODE_ENV ?? 'development') !== 'production',
 });

@@ -22,7 +22,8 @@
     "simulate": "tsx apps/simulator/src/main.ts",
     "demo": "tsx scripts/demo.ts",
     "bootstrap": "pnpm db:reset && pnpm db:seed",
-    "build:vercel": "pnpm --filter @wealthcard/web build"
+    "build:vercel": "pnpm --filter @wealthcard/web build",
+    "start": "node apps/api/dist/migrate.js && node apps/api/dist/main.js"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

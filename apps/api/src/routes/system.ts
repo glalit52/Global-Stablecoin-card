@@ -62,8 +62,12 @@ export const registerSystemRoutes = (app: FastifyInstance, ctx: AppContext): voi
    * full chain — price, collateral, limit, risk state, alert, liquidation plan
    * — can be exercised in one call.
    *
-   * Sandbox only: it is not registered when a real market feed is configured.
+   * Registered only where sandbox endpoints are enabled. Moving the market is
+   * a way to manufacture credit for every customer at once, so it is off in
+   * production unless ENABLE_SANDBOX_ENDPOINTS is set deliberately.
    */
+  if (!ctx.config.sandboxEndpoints) return;
+
   app.post('/v1/market/scenario', async (req, reply) => {
     const body = parse(z.object({
       symbol: z.string().min(2).max(10),

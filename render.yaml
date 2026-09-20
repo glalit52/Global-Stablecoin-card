@@ -1,0 +1,40 @@
+# Render blueprint: one API service and one Postgres, wired together.
+#
+# New > Blueprint in the Render dashboard, point it at this repository, and it
+# provisions both. Set ENABLE_SANDBOX_ENDPOINTS and run the seed only if this
+# is a demo deployment — the seeded accounts share a published password.
+services:
+  - type: web
+    name: wealthcard-api
+    runtime: docker
+    dockerfilePath: ./Dockerfile
+    plan: starter
+    healthCheckPath: /health
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: PORT
+        value: 4000
+      - key: DATABASE_URL
+        fromDatabase:
+          name: wealthcard-db
+          property: connectionString
+      # Set this to your deployed front end's origin, or the browser will be
+      # refused by CORS.
+      - key: CORS_ORIGINS
+        sync: false
+      # Demo endpoints that can move the market or assert holdings. Leave unset
+      # for anything real.
+      - key: ENABLE_SANDBOX_ENDPOINTS
+        value: false
+      - key: RISK_TICK_SECONDS
+        value: 20
+      - key: MARKET_TICK_SECONDS
+        value: 10
+      - key: LOG_LEVEL
+        value: info
+
+databases:
+  - name: wealthcard-db
+    databaseName: wealthcard
+    plan: basic-256mb

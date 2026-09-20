@@ -71,6 +71,35 @@ last line of output.
 
 ## Deploying the API
 
+### Render, in one step
+
+`render.yaml` is a blueprint: **New -> Blueprint** in the Render dashboard,
+point it at this repository, and it provisions the API and a Postgres and wires
+`DATABASE_URL` between them. Set `CORS_ORIGINS` to your front end's origin when
+it asks — it is the one value the blueprint leaves blank, because only you know
+it.
+
+### Anywhere else
+
+`Dockerfile` builds an image that runs on Railway, Fly, ECS or any container
+host. It compiles the workspace, drops devDependencies, runs as a non-root
+user, and starts with:
+
+```
+node apps/api/dist/migrate.js && node apps/api/dist/main.js
+```
+
+Migrations are idempotent, so running them on every boot is safe and keeps a
+redeploy and a schema change as one step. Nothing in the runtime layer needs a
+TypeScript loader — the migration runner compiles to `dist` alongside the
+server.
+
+> The image itself was not built where this was written: the sandbox blocks
+> Docker Hub. The compiled migration runner and the exact start command were
+> each verified directly on Node 22; the layer mechanics were not.
+
+### Environment
+
 A persistent host, a managed Postgres, and these environment variables:
 
 ```
@@ -80,25 +109,27 @@ PORT=4000
 NODE_ENV=production
 RISK_TICK_SECONDS=20
 MARKET_TICK_SECONDS=10
-```
-
-```bash
-pnpm install --frozen-lockfile
-pnpm db:migrate            # never db:reset against a real database
-pnpm start:api
+ENABLE_SANDBOX_ENDPOINTS=false
 ```
 
 Health check: `GET /health` returns 200 with `"database": "up"`.
 
-Two things to change before this faces anyone real:
+### The sandbox switch
 
-- **Seed data is demo data.** `pnpm db:seed` creates three customers with a
-  shared, published password. Never run it against anything public.
-- **The sandbox endpoints must go.** `POST /v1/market/scenario` moves the
-  market for every customer, and `POST /v1/admin/demo/seed-assets` asserts
-  holdings a customer does not have. The latter already refuses to run outside
-  a sandbox custody provider; the former does not, and should be gated the same
-  way before any real deployment.
+Two endpoints exist only to make demos possible, and either is a way to
+manufacture credit:
+
+- `POST /v1/market/scenario` moves the market for **every** customer at once.
+- `POST /v1/admin/demo/seed-assets` asserts holdings a customer does not have.
+
+Both are off whenever `NODE_ENV=production`, unless `ENABLE_SANDBOX_ENDPOINTS`
+is set to `true` deliberately. Under production settings the scenario route is
+not registered at all and returns 404 — verified, not assumed.
+
+Turn them on only for a demo deployment, and note that a demo deployment is
+also the only place `pnpm db:seed` belongs: it creates three customers sharing
+a password published in this repository. Never run the seed against anything
+real.
 
 ## Putting the API on Vercel anyway
 
