@@ -5,7 +5,7 @@
   "type": "module",
   "packageManager": "pnpm@9.12.0",
   "engines": {
-    "node": ">=22"
+    "node": "22.x"
   },
   "scripts": {
     "build": "tsc -b tsconfig.build.json",
@@ -21,7 +21,8 @@
     "build:web": "pnpm --filter @wealthcard/web build",
     "simulate": "tsx apps/simulator/src/main.ts",
     "demo": "tsx scripts/demo.ts",
-    "bootstrap": "pnpm db:reset && pnpm db:seed"
+    "bootstrap": "pnpm db:reset && pnpm db:seed",
+    "build:vercel": "pnpm --filter @wealthcard/web build"
   },
   "devDependencies": {
     "@types/node": "^22.10.2",

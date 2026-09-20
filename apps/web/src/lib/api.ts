@@ -6,6 +6,18 @@
  * screen, so formatting works on the string directly.
  */
 
+/**
+ * Where the API lives.
+ *
+ * In development Vite proxies `/api` to localhost:4000, so the default works
+ * with no configuration. A deployed front end has no such proxy, so it needs
+ * the API's real origin — set `VITE_API_BASE_URL` at build time (Vite inlines
+ * it, so it must be present when the bundle is built, not at runtime).
+ */
+const API_BASE = (import.meta.env.VITE_API_BASE_URL ?? '/api').replace(/\/$/, '');
+
+export const apiBaseUrl = (): string => API_BASE;
+
 export class ApiError extends Error {
   constructor(readonly status: number, readonly code: string, message: string, readonly details?: unknown) {
     super(message);
@@ -34,7 +46,7 @@ export const request = async <T>(
   method: string, path: string, body?: unknown,
 ): Promise<T> => {
   const token = getToken();
-  const response = await fetch(`/api${path}`, {
+  const response = await fetch(`${API_BASE}${path}`, {
     method,
     headers: {
       ...(body !== undefined ? { 'content-type': 'application/json' } : {}),

@@ -111,3 +111,4 @@ must be set by the regulated lender, legal counsel and a risk committee.
 - [Risk policy](docs/RISK_POLICY.md) — how collateral, credit, risk and liquidation are computed
 - [API](docs/API.md) — every endpoint, with examples
 - [Compliance](docs/COMPLIANCE.md) — regulated functions, controls, and what is still missing
+- [Deployment](docs/DEPLOYMENT.md) — what goes where, and why the API needs a persistent process
