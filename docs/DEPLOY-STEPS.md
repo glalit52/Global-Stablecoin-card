@@ -15,18 +15,59 @@ not `main`. You will need to select it twice below.
 Supabase leaves every table readable by anyone holding the project's public
 key. Until this is done, that includes password hashes and session tokens.
 
-1. **supabase.com** → project **wealthcard** → **SQL Editor**
-2. Paste and **Run**:
+1. **supabase.com** → project **wealthcard** → **SQL Editor** → **New query**
+2. Paste **all** of the following and click **Run**
 
 ```sql
-SELECT format('ALTER TABLE %I.%I ENABLE ROW LEVEL SECURITY;', schemaname, tablename)
-FROM pg_tables WHERE schemaname = 'public';
+ALTER TABLE public.customers ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.devices ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.sessions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.step_up_challenges ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.connected_accounts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.assets ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.price_observations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.credit_facilities ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.credit_decisions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.risk_snapshots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.margin_calls ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.liquidations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.liquidation_lots ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.cards ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.authorizations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.transactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.disputes ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.repayments ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.statements ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.journal_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.postings ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.reward_entries ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.redemptions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.lounge_visits ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.alerts ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.ai_interactions ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.audit_log ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.operators ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.approval_requests ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.idempotency_records ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.policy_activations ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.schema_migrations ENABLE ROW LEVEL SECURITY;
+
+-- The ledger view runs with its creator's privileges, so it would still be
+-- readable through the public API even with the tables locked.
+ALTER VIEW public.account_balances SET (security_invoker = true);
 ```
 
-3. It prints a list of commands. Copy them all into a new query and **Run**.
+3. Confirm it worked: **Database** → **Tables**. Every table should now show an
+   **RLS enabled** badge. Or run this — it should return **no rows**:
 
-Nothing breaks: this app connects directly as `postgres`, which is not subject
-to these rules. It only shuts the public door.
+```sql
+SELECT tablename FROM pg_tables
+WHERE schemaname = 'public' AND NOT rowsecurity;
+```
+
+Nothing breaks. This app connects directly as `postgres`, which is not subject
+to these rules — the change only shuts the public door. There are deliberately
+no policies: the API is the only thing that should ever read these tables.
 
 ---
 
